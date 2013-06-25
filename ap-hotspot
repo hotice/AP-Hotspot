@@ -1,0 +1,284 @@
+#!/bin/bash
+# Script to set up a WiFi Hotspot in Ubuntu that works with
+# Android and Windows Phone.
+#
+# Copyright (C) 2013  Alin Andrei <andrew@webupd8.org>
+# Copyright (C) 2013  Satyajit sahoo
+# 
+# This scipt is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published
+# by the Free Software Foundation; either version 3 of the License,
+# or (at your option) any later version.
+# 
+# The script is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this script. If not, see <http://www.gnu.org/licenses/>.
+
+# Global variables
+logfile="/tmp/hostapd.log"
+pidfile="/tmp/hotspot.pid"
+hotspotconfig="/etc/hostapd-hotspot.conf"
+dnsmasqconfig="/etc/dnsmasq.conf"
+user=`who | grep $(echo "$DISPLAY" | cut -d '.' -f 1) | cut -d ' ' -f 1 | tail -1`
+
+show_msg() {
+echo -e "$@"
+}
+
+show_info() {
+echo -e "\033[1;34m$@\033[0m"
+}
+
+show_warn() {
+echo -e "\033[1;33m$@\033[0m"
+}
+
+show_err() {
+echo -e "\033[1;31m$@\033[0m" 1>&2
+}
+
+show_debug() {
+while read input; do
+	[[ "$debug" == "true" ]] && echo -e "$input"
+done
+}
+
+show_notify() {
+sudo -u "$user" notify-send -h int:transient:1 -i "network-wireless" "$@"
+}
+
+check_root() {
+# Check if user is root
+if [[ ! $(whoami) = "root" ]]; then
+	show_err "Please run the script as root"
+	exit 1
+fi
+}
+
+check_supported() {
+# Check if the wireless card supports Access Point mode. This script won't work if it doesn't support it
+if [[ ! $(iw list 2>&1 | grep -A6 "Supported interface modes" | grep AP$) ]]; then
+	show_err "Your wireless card does not support Access Point mode"
+	exit 1
+fi
+}
+
+check_network() {
+# Check if Wireless is disabled
+if [[ $(iwconfig "$INTERFACE_WLAN" 2>&1 | grep "Tx-Power=off") ]]; then
+	show_err "WiFi is disabled, please enable WiFi before running this script"
+	exit 1
+# Check if Wireless is enabled, but connected to a network
+elif [[ ! $(iwconfig "$INTERFACE_WLAN" 2>&1 | grep "ESSID:off/any") && $(iwconfig "$INTERFACE_WLAN" 2>&1 | grep "ESSID:") ]]; then
+	show_err "Please disconnect WiFi before proceeding"
+	exit 1
+fi
+}
+
+check_connected() {
+# Monitor logfile for connected devices
+lines_con="0"
+lines_dis="0"
+while [[ -f "$logfile" ]]; do
+	if [[ "$lines_con" < $(grep -c "AP-STA-CONNECTED" "$logfile") ]]; then
+		show_notify "New device connected to Hotspot"
+		(( lines_con++ ))
+	elif [[ "$lines_dis" < $(grep -c "AP-STA-DISCONNECTED" "$logfile") ]]; then
+		show_notify "Device disconnected from Hotspot"
+		(( lines_dis++ ))
+	fi
+	sleep 5
+done
+}
+
+configure() {
+# Check root
+check_root
+# Check supported
+check_supported
+# Reset config
+rm -f "$hotspotconfig"
+sed -i "s/# Bind to only one interface//g" "$dnsmasqconfig"
+sed -i "s/bind-interfaces//g" "$dnsmasqconfig"
+sed -i "s/# Choose interface for binding//g" "$dnsmasqconfig"
+sed -i "s/^interface=.*//g" "$dnsmasqconfig"
+sed -i "s/# Specify range of IP addresses for DHCP leasses//g" "$dnsmasqconfig"
+sed -i "s/dhcp-range=192.168.150.2.*//g" "$dnsmasqconfig"
+sed -i "s/#INTERFACE_NET=.*//g" "$dnsmasqconfig"
+cat -s "$dnsmasqconfig" | tee "$dnsmasqconfig" > /dev/null 2>&1
+# Network interface connected to the Internet
+show_msg "Detecting main network interface..."
+INTERFACE_NET=$(route | grep -iw "default" | awk '{print $NF}')
+if [[ ! $INTERFACE_NET ]]; then
+	show_warn "Failed to detect the network interface connected to the Internet. Please enter your network interface (e.g.- eth1):"
+else
+	show_msg "Detected $INTERFACE_NET as the network interface connected to the Internet. Press ENTER if this is correct or enter the desired interface below (e.g.- eth0, ppp0 etc.):"
+fi
+read interface_net
+[[ "$interface_net" ]] && INTERFACE_NET="$interface_net"
+# WiFi interface
+INTERFACE_WLAN=$(iwconfig 2>&1 | grep "^wlan" | sed -e 's/ .*//g')
+if [[ ! $INTERFACE_WLAN ]]; then
+	show_warn "Failed to detect the WiFi interface. Please enter your WiFi interface (e.g.- wlan0):"
+else
+	show_msg "Detected $INTERFACE_WLAN as your WiFi interface. Press ENTER if this is correct or enter the desired interface (e.g.- wlan1):"
+fi
+read interface_wlan
+[[ "$interface_wlan" ]] && INTERFACE_WLAN="$interface_wlan"
+# Hotspot SSID
+SSID="myhotspot"
+show_msg "Enter the desired Access Point name or press ENTER to use the default one ($SSID):"
+read ssid
+[[ "$ssid" ]] && SSID="$ssid"
+# WPA Passphrase
+WPAPASS="qwerty0987"
+show_msg "Enter the desired WPA Passphrase below or press ENTER to use the default one ($WPAPASS):"
+read wpapass
+[[ "$wpapass" ]] && WPAPASS="$wpapass"
+# Write the hostapd config file
+cat <<EOF | tee "$hotspotconfig" > /dev/null 2>&1
+# WiFi Hotspot
+interface=$INTERFACE_WLAN
+driver=nl80211
+#Access Point
+ssid=$SSID
+hw_mode=g
+# WiFi Channel:
+channel=1
+macaddr_acl=0
+auth_algs=1
+ignore_broadcast_ssid=0
+wpa=3
+wpa_passphrase=$WPAPASS
+wpa_key_mgmt=WPA-PSK
+wpa_pairwise=TKIP
+rsn_pairwise=CCMP
+EOF
+# Add the required bits to the dnsmasq config file
+if [[ ! `grep "Bind to only one interface" "$dnsmasqconfig"` ]]; then
+cat <<EOF | tee -a "$dnsmasqconfig" > /dev/null 2>&1
+# Bind to only one interface
+bind-interfaces
+# Choose interface for binding
+interface=$INTERFACE_WLAN
+# Specify range of IP addresses for DHCP leasses
+dhcp-range=192.168.150.2,192.168.150.10,12h
+#INTERFACE_NET=$INTERFACE_NET
+EOF
+fi
+}
+
+get_vars() {
+# Run Configuration Wizard if config files don't exist
+[[ ! -f "$hotspotconfig" || ! -f "$dnsmasqconfig" ]] && configure
+# Get $INTERFACE_NET and $INTERFACE_WLAN from the config files
+INTERFACE_WLAN=$(grep "interface" "$hotspotconfig" | sed -e 's/interface=//g')
+INTERFACE_NET=$(grep "INTERFACE_NET" "$dnsmasqconfig" | sed -e 's/#INTERFACE_NET=//g')
+}
+
+start() {
+# Check previous process
+if [[ -f "$pidfile" ]]; then
+	show_err "Another process is already running"
+	exit 1
+fi
+# Check root
+check_root
+# Check supported
+check_supported
+# Get variables
+get_vars
+# Check network
+check_network
+# Write the PID to a file
+echo "$$" > "$pidfile"
+show_info "Starting Wireless Hotspot..."
+# Set up the services
+service hostapd stop 2>&1 | show_debug
+service dnsmasq stop 2>&1 | show_debug
+update-rc.d hostapd disable 2>&1 | show_debug
+update-rc.d dnsmasq disable 2>&1 | show_debug
+# Configure IP address for WLAN
+ifconfig "$INTERFACE_WLAN" 192.168.150.1 2>&1 | show_debug
+# Start DHCP/DNS server
+service dnsmasq restart 2>&1 | show_debug
+# Enable routing
+sysctl net.ipv4.ip_forward=1 2>&1 | show_debug
+# Enable NAT
+iptables -t nat -A POSTROUTING -o "$INTERFACE_NET" -j MASQUERADE 2>&1 | show_debug
+# Run access point daemon
+if [[ ! `hostapd --help 2>&1 | grep "\-f"` ]]; then
+	rm -f "$logfile"
+	touch "$logfile"
+	hostapd -B "$hotspotconfig" -f "$logfile"
+	while :
+	do
+		[[ `grep "Using interface" "$logfile"` ]] && show_info "Wireless Hotspot active" && show_notify "Wireless Hotspot active" && break
+		sleep 5
+	done
+	check_connected 2>&1 &
+	disown
+else	
+	hostapd -B "$hotspotconfig" 2>&1 | show_debug
+	show_info "Wireless Hotspot active"
+fi
+}
+
+stop() {
+# Check root
+check_root
+# Get variables
+get_vars
+# Kill process
+show_info "Stopping Wireless Hotspot..."
+if [[ -f "$pidfile" ]]; then
+	pid=$(cat "$pidfile")
+	rm -f "$pidfile"
+	[[ `grep -s "ap-hotspot" "/proc/$pid/cmdline"` ]] && kill -9 "$pid"
+fi
+# Delete log
+rm -f "$logfile"
+# Disable NAT
+iptables -D POSTROUTING -t nat -o "$INTERFACE_NET" -j MASQUERADE 2>&1 | show_debug
+# Disable routing
+sysctl net.ipv4.ip_forward=0 2>&1 | show_debug
+# Set up the services
+service hostapd stop 2>&1 | show_debug
+service dnsmasq stop 2>&1 | show_debug
+# Restart WiFi and disable newly created mon.WLAN network
+ifconfig "mon.$INTERFACE_WLAN" down
+ifconfig "$INTERFACE_WLAN" down
+ifconfig "$INTERFACE_WLAN" up
+}
+
+restart() {
+show_info "Restarting Wireless Hotspot..."
+stop
+start
+}
+
+case "$1" in
+	start)
+			start;;
+	stop)
+			stop;;
+	restart)
+			restart;;
+	configure)
+			configure;;
+	debug)
+			debug="true"
+			start;;
+	*)
+			args=( "start" "stop" "restart" "configure" "debug" )
+			desc=( "start wireless hotspot" "stop wireless hotspot" "restart wireless hotspot" "configure hotspot" "start with detailed messages" )
+			echo -e "Usage:\tap-hotspot [argument]\n"
+			for ((i=0; i < ${#args[@]}; i++)); do
+				printf "\t%-15s%-s\n" "${args[i]}" "${desc[i]}"
+			done
+			exit;;
+esac
