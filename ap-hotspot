@@ -110,9 +110,13 @@ sed -i "s/# Specify range of IP addresses for DHCP leasses//g" "$dnsmasqconfig"
 sed -i "s/dhcp-range=192.168.150.2.*//g" "$dnsmasqconfig"
 sed -i "s/#INTERFACE_NET=.*//g" "$dnsmasqconfig"
 cat -s "$dnsmasqconfig" | tee "$dnsmasqconfig" > /dev/null 2>&1
-# Network interface connected to the Internet
-show_msg "Detecting main network interface..."
+# Detect configuration
+show_msg "Detecting configuration..."
 INTERFACE_NET=$(route | grep -iw "default" | awk '{print $NF}')
+INTERFACE_WLAN=$(iwconfig 2>&1 | grep "^wlan" | sed -e 's/ .*//g')
+SSID="myhotspot"
+WPAPASS="qwerty0987"
+# Network interface connected to the Internet
 if [[ ! $INTERFACE_NET ]]; then
 	show_warn "Failed to detect the network interface connected to the Internet. Please enter your network interface (e.g.- eth1):"
 else
@@ -121,7 +125,6 @@ fi
 read interface_net
 [[ "$interface_net" ]] && INTERFACE_NET="$interface_net"
 # WiFi interface
-INTERFACE_WLAN=$(iwconfig 2>&1 | grep "^wlan" | sed -e 's/ .*//g')
 if [[ ! $INTERFACE_WLAN ]]; then
 	show_warn "Failed to detect the WiFi interface. Please enter your WiFi interface (e.g.- wlan0):"
 else
@@ -130,12 +133,10 @@ fi
 read interface_wlan
 [[ "$interface_wlan" ]] && INTERFACE_WLAN="$interface_wlan"
 # Hotspot SSID
-SSID="myhotspot"
 show_msg "Enter the desired Access Point name or press ENTER to use the default one ($SSID):"
 read ssid
 [[ "$ssid" ]] && SSID="$ssid"
 # WPA Passphrase
-WPAPASS="qwerty0987"
 show_msg "Enter the desired WPA Passphrase below or press ENTER to use the default one ($WPAPASS):"
 read wpapass
 [[ "$wpapass" ]] && WPAPASS="$wpapass"
