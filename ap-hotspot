@@ -212,7 +212,7 @@ sysctl net.ipv4.ip_forward=1 2>&1 | show_debug
 # Enable NAT
 iptables -t nat -A POSTROUTING -o "$INTERFACE_NET" -j MASQUERADE 2>&1 | show_debug
 # Run access point daemon
-if [[ ! `hostapd --help 2>&1 | grep "\-f"` ]]; then
+if [[ `hostapd --help 2>&1 | grep "\-f"` ]]; then
 	rm -f "$logfile"
 	touch "$logfile"
 	hostapd -B "$hotspotconfig" -f "$logfile"
