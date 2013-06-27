@@ -21,8 +21,8 @@
 # Global variables
 logfile="/tmp/hostapd.log"
 pidfile="/tmp/hotspot.pid"
-hotspotconfig="/etc/hostapd-hotspot.conf"
-dnsmasqconfig="/etc/dnsmasq.conf"
+hotspotconfig="/etc/ap-hotspot.conf"
+dnsmasqconfig="/etc/dnsmasq.d/ap-hotspot.rules"
 user=$(who | grep $(echo "$DISPLAY" | cut -d '.' -f 1) | cut -d ' ' -f 1 | tail -1)
 
 show_msg() {
@@ -102,14 +102,7 @@ check_root
 check_supported
 # Reset config
 rm -f "$hotspotconfig"
-sed -i "s/# Bind to only one interface//g" "$dnsmasqconfig"
-sed -i "s/bind-interfaces//g" "$dnsmasqconfig"
-sed -i "s/# Choose interface for binding//g" "$dnsmasqconfig"
-sed -i "s/^interface=.*//g" "$dnsmasqconfig"
-sed -i "s/# Specify range of IP addresses for DHCP leasses//g" "$dnsmasqconfig"
-sed -i "s/dhcp-range=192.168.150.2.*//g" "$dnsmasqconfig"
-sed -i "s/#INTERFACE_NET=.*//g" "$dnsmasqconfig"
-cat -s "$dnsmasqconfig" | tee "$dnsmasqconfig" > /dev/null 2>&1
+rm -f "$dnsmasqconfig"
 # Detect configuration
 show_msg "Detecting configuration..."
 INTERFACE_NET=$(route | grep -iw "default" | awk '{print $NF}')
@@ -161,7 +154,7 @@ rsn_pairwise=CCMP
 EOF
 # Add the required bits to the dnsmasq config file
 if [[ ! $(grep "Bind to only one interface" "$dnsmasqconfig") ]]; then
-cat <<EOF | tee -a "$dnsmasqconfig" > /dev/null 2>&1
+cat <<EOF | tee "$dnsmasqconfig" > /dev/null 2>&1
 # Bind to only one interface
 bind-interfaces
 # Choose interface for binding
@@ -170,6 +163,7 @@ interface=$INTERFACE_WLAN
 dhcp-range=192.168.150.2,192.168.150.10,12h
 #INTERFACE_NET=$INTERFACE_NET
 EOF
+chmod +x "$dnsmasqconfig"
 fi
 }
 
