@@ -23,7 +23,7 @@ logfile="/tmp/hostapd.log"
 pidfile="/tmp/hotspot.pid"
 hotspotconfig="/etc/hostapd-hotspot.conf"
 dnsmasqconfig="/etc/dnsmasq.conf"
-user=`who | grep $(echo "$DISPLAY" | cut -d '.' -f 1) | cut -d ' ' -f 1 | tail -1`
+user=$(who | grep $(echo "$DISPLAY" | cut -d '.' -f 1) | cut -d ' ' -f 1 | tail -1)
 
 show_msg() {
 echo -e "$@"
@@ -160,7 +160,7 @@ wpa_pairwise=TKIP
 rsn_pairwise=CCMP
 EOF
 # Add the required bits to the dnsmasq config file
-if [[ ! `grep "Bind to only one interface" "$dnsmasqconfig"` ]]; then
+if [[ ! $(grep "Bind to only one interface" "$dnsmasqconfig") ]]; then
 cat <<EOF | tee -a "$dnsmasqconfig" > /dev/null 2>&1
 # Bind to only one interface
 bind-interfaces
@@ -212,13 +212,13 @@ sysctl net.ipv4.ip_forward=1 2>&1 | show_debug
 # Enable NAT
 iptables -t nat -A POSTROUTING -o "$INTERFACE_NET" -j MASQUERADE 2>&1 | show_debug
 # Run access point daemon
-if [[ `hostapd --help 2>&1 | grep "\-f"` ]]; then
+if [[ $(hostapd --help 2>&1 | grep "\-f") ]]; then
 	rm -f "$logfile"
 	touch "$logfile"
 	hostapd -B "$hotspotconfig" -f "$logfile"
 	while :
 	do
-		[[ `grep "Using interface" "$logfile"` ]] && show_info "Wireless Hotspot active" && show_notify "Wireless Hotspot active" && break
+		[[ $(grep "Using interface" "$logfile") ]] && show_info "Wireless Hotspot active" && show_notify "Wireless Hotspot active" && break
 		sleep 5
 	done
 	check_connected 2>&1 &
@@ -239,7 +239,7 @@ show_info "Stopping Wireless Hotspot..."
 if [[ -f "$pidfile" ]]; then
 	pid=$(cat "$pidfile")
 	rm -f "$pidfile"
-	[[ `grep -s "ap-hotspot" "/proc/$pid/cmdline"` ]] && kill -9 "$pid"
+	[[ $(grep -s "ap-hotspot" "/proc/$pid/cmdline") ]] && kill -9 "$pid"
 fi
 # Delete log
 rm -f "$logfile"
