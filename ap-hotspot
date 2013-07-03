@@ -62,7 +62,7 @@ fi
 check_supported() {
 # Check if the wireless card supports Access Point mode. This script won't work if it doesn't support it
 if [[ ! $(iw list 2>&1 | grep -A6 "Supported interface modes" | grep AP$) ]]; then
-	show_err "Your wireless card does not support Access Point mode"
+	show_err "Your wireless card or driver does not support Access Point mode"
 	exit 1
 fi
 }
