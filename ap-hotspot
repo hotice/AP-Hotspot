@@ -226,6 +226,11 @@ fi
 stop() {
 # Check root
 check_root
+# Check if the hotspot is active
+if [[ -z $(ifconfig | grep "mon.$INTERFACE_WLAN") ]]; then
+	show_info "Wireless Hotspot is not active"
+	exit 1
+fi
 # Get variables
 get_vars
 # Kill process
