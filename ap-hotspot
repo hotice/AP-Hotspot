@@ -2,8 +2,8 @@
 # Script to set up a WiFi Hotspot in Ubuntu that works with
 # Android and Windows Phone.
 #
-# Copyright (C) 2013  Alin Andrei <andrew@webupd8.org>
-# Copyright (C) 2013  Satyajit sahoo
+# Copyright (C) 2014  Alin Andrei <andrew@webupd8.org>
+# Copyright (C) 2014  Satyajit sahoo
 # 
 # This scipt is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published
@@ -23,7 +23,12 @@ logfile="/tmp/hostapd.log"
 pidfile="/tmp/hotspot.pid"
 hotspotconfig="/etc/ap-hotspot.conf"
 dnsmasqconfig="/etc/dnsmasq.d/ap-hotspot.rules"
-user=$(who | grep $(echo "$DISPLAY" | cut -d '.' -f 1) | cut -d ' ' -f 1 | tail -1)
+user=$(who | awk '{print $1}' | sed '/^root$/d' | uniq)
+WMPID=$(ps -u $user | tail -n 1 | awk '{print $1}')
+DBUS=$(egrep -z 'DBUS_SESSION_BUS_ADDRESS|DISPLAY' /proc/${WMPID}/environ | sed -r -e 's/(.)DBUS_/\1 DBUS_/' -e 's/(.)DISPLAY/\1 DISPLAY/')
+echo user $user
+echo WMPID $WMPID
+echo DBUS $DBUS
 
 show_msg() {
 echo -e "$@"
@@ -48,7 +53,7 @@ done
 }
 
 show_notify() {
-sudo -u "$user" notify-send -h int:transient:1 -i "network-wireless" "$@"
+su $user -s /bin/bash -c "${DBUS} notify-send -h int:transient:1 -i \"network-wireless\" \"$@\""
 }
 
 check_root() {
@@ -153,7 +158,7 @@ wpa_pairwise=TKIP
 rsn_pairwise=CCMP
 EOF
 # Add the required bits to the dnsmasq config file
-if [[ ! $(grep "Bind to only one interface" "$dnsmasqconfig") ]]; then
+if [[ ! $(grep "Bind to only one interface" "$dnsmasqconfig" > /dev/null 2>&1) ]]; then
 cat <<EOF | tee "$dnsmasqconfig" > /dev/null 2>&1
 # Bind to only one interface
 bind-interfaces
