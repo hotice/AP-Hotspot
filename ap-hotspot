@@ -26,9 +26,6 @@ dnsmasqconfig="/etc/dnsmasq.d/ap-hotspot.rules"
 user=$(who | awk '{print $1}' | sed '/^root$/d' | uniq)
 WMPID=$(ps -u $user | tail -n 1 | awk '{print $1}')
 DBUS=$(egrep -z 'DBUS_SESSION_BUS_ADDRESS|DISPLAY' /proc/${WMPID}/environ | sed -r -e 's/(.)DBUS_/\1 DBUS_/' -e 's/(.)DISPLAY/\1 DISPLAY/')
-echo user $user
-echo WMPID $WMPID
-echo DBUS $DBUS
 
 show_msg() {
 echo -e "$@"
