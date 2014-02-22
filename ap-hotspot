@@ -228,11 +228,6 @@ fi
 stop() {
 # Check root
 check_root
-# Check if the hotspot is active
-if [[ -z $(ifconfig | grep "mon.$INTERFACE_WLAN") ]]; then
-	show_info "Wireless Hotspot is not active"
-	exit 1
-fi
 # Get variables
 get_vars
 # Kill process
@@ -252,7 +247,10 @@ sysctl net.ipv4.ip_forward=0 2>&1 | show_debug
 service hostapd stop 2>&1 | show_debug
 service dnsmasq stop 2>&1 | show_debug
 # Restart WiFi and disable newly created mon.WLAN network
-ifconfig "mon.$INTERFACE_WLAN" down
+if [[ ! -z $(ifconfig | grep "mon.$INTERFACE_WLAN") ]]; then
+# Check if the hotspot is active
+	ifconfig "mon.$INTERFACE_WLAN" down
+fi
 ifconfig "$INTERFACE_WLAN" down
 ifconfig "$INTERFACE_WLAN" up
 }
