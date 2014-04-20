@@ -133,13 +133,12 @@ read ssid
 [[ "$ssid" ]] && SSID="$ssid"
 # Broadcast SSID
 show_msg "Choose the SSID broadcast behavior (default: broadcast): "
-broadcast_options=("Broadcast", "Hide")
+broadcast_options=("broadcast", "hide")
 select broadcast_option in "${broadcast_options[@]}"
     case $broadcast_option in
-        "Hide")
+        "hide")
             BROADCAST_SSID=1
         ;;
-        "Broadcast")
         *)
             BROADCAST_SSID=0
         ;;
