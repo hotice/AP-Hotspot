@@ -133,16 +133,18 @@ read ssid
 [[ "$ssid" ]] && SSID="$ssid"
 # Broadcast SSID
 show_msg "Choose the SSID broadcast behavior (default: broadcast): "
-broadcast_options=("broadcast", "hide")
-select broadcast_option in "${broadcast_options[@]}"
+broadcast_options=("Broadcast", "Hide")
+select broadcast_option in "${broadcast_options[@]}";
+do
     case $broadcast_option in
-        "hide")
+        1)
             BROADCAST_SSID=1
         ;;
-        *)
+        2)
             BROADCAST_SSID=0
         ;;
     esac
+    break
 done
 [[ "$ssid" ]] && SSID="$ssid"
 # WPA Passphrase
