@@ -138,11 +138,12 @@ select broadcast_option in "${broadcast_options[@]}";
 do
     case $broadcast_option in
         1)
-            BROADCAST_SSID=1
-        ;;
-        2)
             BROADCAST_SSID=0
         ;;
+        *)
+	    BROADCAST_SSID=1
+        ;;
+	
     esac
     break
 done
@@ -159,12 +160,11 @@ driver=nl80211
 #Access Point
 ssid=$SSID
 hw_mode=g
-ignore_broadcast_ssid=$BROADCAST_SSID
 # WiFi Channel:
 channel=1
 macaddr_acl=0
 auth_algs=1
-ignore_broadcast_ssid=0
+ignore_broadcast_ssid=$BROADCAST_SSID
 wpa=2
 wpa_passphrase=$WPAPASS
 wpa_key_mgmt=WPA-PSK
