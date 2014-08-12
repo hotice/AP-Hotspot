@@ -27,6 +27,12 @@ user=$(who | awk '{print $1}' | sed '/^root$/d' | uniq)
 WMPID=$(ps -u $user | tail -n 1 | awk '{print $1}')
 DBUS=$(egrep -z 'DBUS_SESSION_BUS_ADDRESS|DISPLAY' /proc/${WMPID}/environ | sed -r -e 's/(.)DBUS_/\1 DBUS_/' -e 's/(.)DISPLAY/\1 DISPLAY/')
 
+if command -v service > /dev/null; then
+    UPSTART_EXISTS="yes"
+else
+    UPSTART_EXISTS=
+fi
+
 show_msg() {
 echo -e "$@"
 }
@@ -195,14 +201,25 @@ check_network
 echo "$$" > "$pidfile"
 show_info "Starting Wireless Hotspot..."
 # Set up the services
-service hostapd stop 2>&1 | show_debug
-service dnsmasq stop 2>&1 | show_debug
-update-rc.d hostapd disable 2>&1 | show_debug
-update-rc.d dnsmasq disable 2>&1 | show_debug
+if [[ $UPSTART_EXISTS ]]; then
+    service hostapd stop 2>&1 | show_debug
+    service dnsmasq stop 2>&1 | show_debug
+    update-rc.d hostapd disable 2>&1 | show_debug
+    update-rc.d dnsmasq disable 2>&1 | show_debug
+else
+    systemctl stop hostapd 2>&1 | show_debug
+    systemctl stop dnsmasq 2>&1 | show_debug
+    systemctl disable hostapd 2>&1 | show_debug
+    systemctl disable dnsmasq 2>&1 | show_debug
+fi
 # Configure IP address for WLAN
 ifconfig "$INTERFACE_WLAN" 192.168.150.1 2>&1 | show_debug
 # Start DHCP/DNS server
-service dnsmasq restart 2>&1 | show_debug
+if [[ $UPSTART_EXISTS ]]; then
+    service dnsmasq restart 2>&1 | show_debug
+else
+    systemctl restart dnsmasq 2>&1 | show_debug
+fi
 # Enable routing
 sysctl net.ipv4.ip_forward=1 2>&1 | show_debug
 # Enable NAT
