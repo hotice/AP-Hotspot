@@ -21,5 +21,9 @@ On Debian and Ubunutu run
 
     sudo apt-get update
     sudo apt-get install libnotify-bin iw dnsmasq
-    sudo ./install.sh
+    sudo make install
+
+You can use the PREFIX make parameter to change the install directory
+
+    sudo make install PREFIX=/usr/bin
     
