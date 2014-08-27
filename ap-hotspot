@@ -135,7 +135,7 @@ read ssid
 show_msg "Enter the desired WPA Passphrase below or press ENTER to use the default one ($WPAPASS):"
 read wpapass
 wpapass_size=${#wpapass}
-if ! [ "$wpapass_size" -ge 8 -a "$wpapass_size" -le 38 ]; then
+if ! [ "$wpapass_size" -eq 0 -o "$wpapass_size" -ge 8 -a "$wpapass_size" -le 38 ]; then
 	show_err "WPA password must be between 8 and 38 characters long"
 	exit 1
 fi
