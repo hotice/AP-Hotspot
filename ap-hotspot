@@ -257,7 +257,6 @@ if [[ ! -z $(ifconfig | grep "mon.$INTERFACE_WLAN") ]]; then
 	ifconfig "mon.$INTERFACE_WLAN" down
 fi
 ifconfig "$INTERFACE_WLAN" down
-ifconfig "$INTERFACE_WLAN" up
 }
 
 restart() {
