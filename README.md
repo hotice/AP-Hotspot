@@ -10,6 +10,8 @@ Usage
         start          start wireless hotspot
         stop           stop wireless hotspot
         restart        restart wireless hotspot
+	enable         enable wireless hotspot service
+        disable        disable wireless hotspot service
         configure      configure hotspot
         debug          start with detailed messages
 
