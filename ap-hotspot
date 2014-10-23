@@ -4,6 +4,7 @@
 #
 # Copyright (C) 2014  Alin Andrei <andrew@webupd8.org>
 # Copyright (C) 2014  Satyajit sahoo
+# Copyright (C) 2014  Roessler Alexander <contact@roessler.systems>
 # 
 # This scipt is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published
@@ -23,6 +24,8 @@ logfile="/tmp/hostapd.log"
 pidfile="/tmp/hotspot.pid"
 hotspotconfig="/etc/ap-hotspot.conf"
 dnsmasqconfig="/etc/dnsmasq.d/ap-hotspot.rules"
+systemdservice="/lib/systemd/ap-hotspot.service"
+systemdsymlink="/etc/systemd/system/ap-hotspot.service"
 user=$(who | awk '{print $1}' | sed '/^root$/d' | uniq)
 WMPID=$(ps -u $user | tail -n 1 | awk '{print $1}')
 DBUS=$(egrep -z 'DBUS_SESSION_BUS_ADDRESS|DISPLAY' /proc/${WMPID}/environ | sed -r -e 's/(.)DBUS_/\1 DBUS_/' -e 's/(.)DISPLAY/\1 DISPLAY/')
@@ -37,6 +40,12 @@ if command -v service > /dev/null; then
     UPSTART_EXISTS="yes"
 else
     UPSTART_EXISTS=
+fi
+
+if command -v systemctl > /dev/null; then
+    SYSTEMD_EXISTS="yes"
+else
+    SYSTEMD_EXISTS=
 fi
 
 show_msg() {
@@ -107,6 +116,13 @@ while [[ -f "$logfile" ]]; do
 	fi
 	sleep 5
 done
+}
+
+check_systemd() {
+if [[ ! $UPSTART_EXISTS ]]; then
+	show_err "Registering AP-Hotspot as service is only supported on systems with Systemd"
+	exit 1
+fi
 }
 
 configure() {
@@ -322,6 +338,46 @@ stop
 start
 }
 
+enable() {
+# Check root
+check_root
+# Check systemd
+check_systemd
+show_info "Enabling Wireless Hotspot Service"
+# Write systemd service file
+cat <<EOF | tee "$systemdservice" > /dev/null 2>&1
+[Unit]
+Description=Creates a Wifi access point
+After=syslog.target network.target
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+KillMode=none
+ExecStart=/usr/bin/ap-hotspot start
+ExecStop=/usr/bin/ap-hotspot stop
+[Install]
+WantedBy=multi-user.target
+EOF
+# Create symlink
+ln -f "$systemdservice" "$systemdsymlink"
+# Register service
+systemctl daemon-reload
+systemctl enable ap-hotspot.service
+}
+
+disable() {
+# Check root
+check_root
+# Check systemd
+check_systemd
+show_info "Disabling Wireless Hotspot Service"
+# Disable service
+systemctl disable ap-hotspot.service
+# Remove files
+rm "$systemdsymlink"
+rm "$systemdservice"
+}
+
 case "$1" in
 	start)
 			start;;
@@ -329,14 +385,18 @@ case "$1" in
 			stop;;
 	restart)
 			restart;;
+	enable)
+			enable;;
+	disable)
+			disable;;
 	configure)
 			configure;;
 	debug)
 			debug="true"
 			start;;
 	*)
-			args=( "start" "stop" "restart" "configure" "debug" )
-			desc=( "start wireless hotspot" "stop wireless hotspot" "restart wireless hotspot" "configure hotspot" "start with detailed messages" )
+			args=( "start" "stop" "restart" "enable" "disable" "configure" "debug" )
+			desc=( "start wireless hotspot" "stop wireless hotspot" "restart wireless hotspot" "enable wireless hotspot service" "disable wireless hotspot service" "configure hotspot" "start with detailed messages" )
 			echo -e "Usage:\tap-hotspot [argument]\n"
 			for ((i=0; i < ${#args[@]}; i++)); do
 				printf "\t%-15s%-s\n" "${args[i]}" "${desc[i]}"
