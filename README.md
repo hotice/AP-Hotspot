@@ -19,13 +19,21 @@ Usage
 
 Install
 -------
-On Debian and Ubunutu run
+On **Debian and Ubuntu** run
 
     sudo apt-get update
     sudo apt-get install libnotify-bin iw dnsmasq
     sudo make install
-
+    
 You can use the PREFIX make parameter to change the install directory
 
     sudo make install PREFIX=/usr/bin
+    
+If you want to start AP-Hotspot at boot and you are using **Debian Wheezy** you may need to install a recent systemd version from the backports
+
+    sudo sh -c \
+    "echo 'deb http://ftp.us.debian.org/debian wheezy-backports main' > \
+     /etc/apt/sources.list.d/wheezy-backports.list"
+    sudo apt-get update
+    sudo apt-get install -t wheezy-backports systemd
     
