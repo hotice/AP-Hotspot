@@ -314,14 +314,13 @@ sysctl net.ipv4.ip_forward=0 2>&1 | show_debug
 # Set up the services
 service hostapd stop 2>&1 | show_debug
 service dnsmasq stop 2>&1 | show_debug
-# Restart WiFi and disable newly created mon.WLAN network
+# Disable WiFi and disable newly created mon.WLAN network
 if [[ $IFCONFIG_EXISTS ]]; then
     if [[ ! -z $(ifconfig | grep "mon.$INTERFACE_WLAN") ]]; then
 # Check if the hotspot is active
         ifconfig "mon.$INTERFACE_WLAN" down
     fi
     ifconfig "$INTERFACE_WLAN" down
-    ifconfig "$INTERFACE_WLAN" up
 else #Using ip command
     if [[ ! -z $(ip addr | grep "mon.$INTERFACE_WLAN") ]]; then
 # Check if the hotspot is active
