@@ -27,6 +27,18 @@ user=$(who | awk '{print $1}' | sed '/^root$/d' | uniq)
 WMPID=$(ps -u $user | tail -n 1 | awk '{print $1}')
 DBUS=$(egrep -z 'DBUS_SESSION_BUS_ADDRESS|DISPLAY' /proc/${WMPID}/environ | sed -r -e 's/(.)DBUS_/\1 DBUS_/' -e 's/(.)DISPLAY/\1 DISPLAY/')
 
+if command -v route > /dev/null; then
+    IFCONFIG_EXISTS="yes"
+else
+    IFCONFIG_EXISTS=
+fi
+
+if command -v service > /dev/null; then
+    UPSTART_EXISTS="yes"
+else
+    UPSTART_EXISTS=
+fi
+
 show_msg() {
 echo -e "$@"
 }
@@ -107,8 +119,27 @@ rm -f "$hotspotconfig"
 rm -f "$dnsmasqconfig"
 # Detect configuration
 show_msg "Detecting configuration..."
-INTERFACE_NET=$(route | grep -iw "default" | awk '{print $NF}')
-INTERFACE_WLAN=$(iwconfig 2>&1 | grep "^wlan" | sed -e 's/ .*//g' | tail -n 1)
+
+#Figuring out Default Interent Interface
+if command -v route > /dev/null; then
+    INTERFACE_NET=$(route | grep -iw "default" | awk '{print $NF}')
+elif command -v ip > /dev/null; then
+    INTERFACE_NET=$(ip route | grep -iw "default" | awk '{print $5}')
+fi
+
+#Figuring out Wireless Interface
+if command -v iwconfig > /dev/null; then  #Checking presence of iwconfig
+    INTERFACE_WLAN=$(iwconfig 2>&1 | grep "^wlan" | sed -e 's/ .*//g' | tail -n 1) #Assuming interface uses old wlan convention
+    if [[ ! $INTERFACE_WLAN ]]; then
+        INTERFACE_WLAN=$(iwconfig 2>&1 | grep "^wlp" | sed -e 's/ .*//g' | tail -n 1)  #Assuming interface uses new wlp convention
+    fi
+elif command -v iw > /dev/null; then
+    INTERFACE_WLAN=$(iw dev 2>&1 | grep "wlan" | awk '{print $2'} | tail -n 1)
+    if [[ ! $INTERFACE_WLAN ]]; then
+        INTERFACE_WLAN=$(iwconfig 2>&1 | grep "^wlp" | sed -e 's/ .*//g' | tail -n 1)
+    fi
+fi
+
 SSID="myhotspot"
 WPAPASS="qwerty0987"
 # Network interface connected to the Internet
@@ -161,7 +192,7 @@ cat <<EOF | tee "$dnsmasqconfig" > /dev/null 2>&1
 bind-interfaces
 # Choose interface for binding
 interface=$INTERFACE_WLAN
-# Specify range of IP addresses for DHCP leasses
+# Specify range of IP addresses for DHCP leases
 dhcp-range=192.168.150.2,192.168.150.10,12h
 #INTERFACE_NET=$INTERFACE_NET
 EOF
@@ -195,14 +226,30 @@ check_network
 echo "$$" > "$pidfile"
 show_info "Starting Wireless Hotspot..."
 # Set up the services
-service hostapd stop 2>&1 | show_debug
-service dnsmasq stop 2>&1 | show_debug
-update-rc.d hostapd disable 2>&1 | show_debug
-update-rc.d dnsmasq disable 2>&1 | show_debug
+if [[ $UPSTART_EXISTS ]]; then
+    service hostapd stop 2>&1 | show_debug
+    service dnsmasq stop 2>&1 | show_debug
+    update-rc.d hostapd disable 2>&1 | show_debug
+    update-rc.d dnsmasq disable 2>&1 | show_debug
+else
+    systemctl stop hostapd 2>&1 | show_debug
+    systemctl stop dnsmasq 2>&1 | show_debug
+    systemctl disable hostapd 2>&1 | show_debug
+    systemctl disable dnsmasq 2>&1 | show_debug
+fi
 # Configure IP address for WLAN
-ifconfig "$INTERFACE_WLAN" 192.168.150.1 2>&1 | show_debug
+if [[ $IFCONFIG_EXISTS ]]; then
+    ifconfig "$INTERFACE_WLAN" 192.168.150.1 2>&1 | show_debug
+else #using ip command
+    ip addr flush dev "$INTERFACE_WLAN" 2>&1 | show_debug
+    ip addr add 192.168.150.1 dev "$INTERFACE_WLAN" 2>&1 | show_debug
+fi
 # Start DHCP/DNS server
-service dnsmasq restart 2>&1 | show_debug
+if [[ $UPSTART_EXISTS ]]; then
+    service dnsmasq restart 2>&1 | show_debug
+else
+    systemctl restart dnsmasq 2>&1 | show_debug
+fi
 # Enable routing
 sysctl net.ipv4.ip_forward=1 2>&1 | show_debug
 # Enable NAT
@@ -247,12 +294,21 @@ sysctl net.ipv4.ip_forward=0 2>&1 | show_debug
 service hostapd stop 2>&1 | show_debug
 service dnsmasq stop 2>&1 | show_debug
 # Restart WiFi and disable newly created mon.WLAN network
-if [[ ! -z $(ifconfig | grep "mon.$INTERFACE_WLAN") ]]; then
+if [[ $IFCONFIG_EXISTS ]]; then
+    if [[ ! -z $(ifconfig | grep "mon.$INTERFACE_WLAN") ]]; then
 # Check if the hotspot is active
-	ifconfig "mon.$INTERFACE_WLAN" down
+        ifconfig "mon.$INTERFACE_WLAN" down
+    fi
+    ifconfig "$INTERFACE_WLAN" down
+    ifconfig "$INTERFACE_WLAN" up
+else #Using ip command
+    if [[ ! -z $(ip addr | grep "mon.$INTERFACE_WLAN") ]]; then
+# Check if the hotspot is active
+        ip link set "mon.$INTERFACE_WLAN" down
+    fi
+    ip link set "$INTERFACE_WLAN" down
+    ip link set "$INTERFACE_WLAN" up
 fi
-ifconfig "$INTERFACE_WLAN" down
-ifconfig "$INTERFACE_WLAN" up
 }
 
 restart() {
