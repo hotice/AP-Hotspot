@@ -107,7 +107,7 @@ rm -f "$hotspotconfig"
 rm -f "$dnsmasqconfig"
 # Detect configuration
 show_msg "Detecting configuration..."
-INTERFACE_NET=$(route | grep -iw "default" | awk '{printf "%s ", $NF}')
+INTERFACE_NET=$(route | grep -iw "default" | awk '{printf "%s ", $NF}' | sed -s 's/ $//')
 INTERFACE_WLAN=$(iwconfig 2>&1 | grep "^wlan" | sed -e 's/ .*//g' | tail -n 1)
 SSID="myhotspot"
 WPAPASS="qwerty0987"
