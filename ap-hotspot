@@ -84,9 +84,18 @@ fi
 
 check_supported() {
 # Check if the wireless card supports Access Point mode. This script won't work if it doesn't support it
+NL80211=1
 if [[ ! $(iw list 2>&1 | grep -A6 "Supported interface modes" | grep AP$) ]]; then
-	show_err "Your wireless card or driver does not support Access Point mode"
-	exit 1
+	if [[ $(iw list 2>&1)  == "nl80211 not found." ]]; then
+		NL80211=0
+		if [[ ! $(hostapd -v 2>&1 | grep "hostapd v0.8.x") == "hostapd v0.8.x" ]]; then
+			show_err "You need hostapd version 0.8 for this driver to work"
+                	exit 1
+		fi
+	else
+		show_err "Your wireless card or driver does not support Access Point mode"
+		exit 1
+	fi
 fi
 }
 
@@ -130,6 +139,7 @@ configure() {
 check_root
 # Check supported
 check_supported
+[ $NL80211 -eq 0 ] && show_warn "Driver does not support nl80211, trying rtl871xdrv"
 # Reset config
 rm -f "$hotspotconfig"
 rm -f "$dnsmasqconfig"
@@ -187,11 +197,16 @@ if ! [ "$wpapass_size" -eq 0 -o "$wpapass_size" -ge 8 -a "$wpapass_size" -le 38 
 	exit 1
 fi
 [[ "$wpapass" ]] && WPAPASS="$wpapass"
+if [ $NL80211 -eq 1 ]; then
+	DRIVER=nl80211
+else
+	DRIVER=rtl871xdrv
+fi
 # Write the hostapd config file
 cat <<EOF | tee "$hotspotconfig" > /dev/null 2>&1
 # WiFi Hotspot
 interface=$INTERFACE_WLAN
-driver=nl80211
+driver=$DRIVER
 #Access Point
 ssid=$SSID
 hw_mode=g
