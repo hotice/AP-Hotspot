@@ -162,6 +162,23 @@ read interface_wlan
 show_msg "Enter the desired Access Point name or press ENTER to use the default one ($SSID):"
 read ssid
 [[ "$ssid" ]] && SSID="$ssid"
+# Broadcast SSID
+show_msg "Choose the SSID broadcast behavior (default: broadcast): "
+broadcast_options=("Broadcast", "Hide")
+select broadcast_option in "${broadcast_options[@]}";
+do
+    case $broadcast_option in
+        1)
+            BROADCAST_SSID=0
+        ;;
+        *)
+	    BROADCAST_SSID=1
+        ;;
+	
+    esac
+    break
+done
+[[ "$ssid" ]] && SSID="$ssid"
 # WPA Passphrase
 show_msg "Enter the desired WPA Passphrase below or press ENTER to use the default one ($WPAPASS):"
 read wpapass
@@ -178,12 +195,13 @@ hw_mode=g
 channel=1
 macaddr_acl=0
 auth_algs=1
-ignore_broadcast_ssid=0
+ignore_broadcast_ssid=$BROADCAST_SSID
 wpa=2
 wpa_passphrase=$WPAPASS
 wpa_key_mgmt=WPA-PSK
 wpa_pairwise=TKIP
 rsn_pairwise=CCMP
+
 EOF
 # Add the required bits to the dnsmasq config file
 if [[ ! $(grep "Bind to only one interface" "$dnsmasqconfig" > /dev/null 2>&1) ]]; then
