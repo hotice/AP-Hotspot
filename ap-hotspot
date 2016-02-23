@@ -49,6 +49,12 @@ else
     SYSTEMD_EXISTS=
 fi
 
+if command -v wicd > /dev/null; then
+    WICD_EXISTS="yes"
+else
+    WICD_EXISTS=
+fi
+
 if tput colors &> /dev/null; then
     COLORS="YES"
 else
@@ -284,11 +290,17 @@ show_info "Starting Wireless Hotspot..."
 if [[ $UPSTART_EXISTS ]]; then
     service hostapd stop 2>&1 | show_debug
     service dnsmasq stop 2>&1 | show_debug
+    if [[ $WICD_EXISTS ]]; then
+        service wicd stop 2>&1 | show_debug
+    fi
     update-rc.d hostapd disable 2>&1 | show_debug
     update-rc.d dnsmasq disable 2>&1 | show_debug
 else
     systemctl stop hostapd 2>&1 | show_debug
     systemctl stop dnsmasq 2>&1 | show_debug
+    if [[ $WICD_EXISTS ]]; then
+        systemctl stop wicd 2>&1 | show_debug
+    fi
     systemctl disable hostapd 2>&1 | show_debug
     systemctl disable dnsmasq 2>&1 | show_debug
 fi
@@ -346,8 +358,19 @@ iptables -D POSTROUTING -t nat -o "$INTERFACE_NET" -j MASQUERADE 2>&1 | show_deb
 # Disable routing
 sysctl net.ipv4.ip_forward=0 2>&1 | show_debug
 # Set up the services
-service hostapd stop 2>&1 | show_debug
-service dnsmasq stop 2>&1 | show_debug
+if [[ $UPSTART_EXISTS ]]; then
+    service hostapd stop 2>&1 | show_debug
+    service dnsmasq stop 2>&1 | show_debug
+    if [[ $WICD_EXISTS ]]; then
+        service wicd start 2>&1 | show_debug
+    fi
+else
+    systemctl stop hostapd 2>&1 | show_debug
+    systemctl stop dnsmasq 2>&1 | show_debug
+    if [[ $WICD_EXISTS ]]; then
+        systemctl start wicd 2>&1 | show_debug
+    fi
+fi
 # Disable WiFi and disable newly created mon.WLAN network
 if [[ $IFCONFIG_EXISTS ]]; then
     if [[ ! -z $(ifconfig | grep "mon.$INTERFACE_WLAN") ]]; then
@@ -396,6 +419,13 @@ ln -f "$systemdservice" "$systemdsymlink"
 # Register service
 systemctl daemon-reload
 systemctl enable ap-hotspot.service
+if [[ $WICD_EXISTS ]]; then
+    if [[ $UPSTART_EXISTS ]]; then
+        update-rc.d wicd disable 2>&1 | show_debug
+    else
+        systemctl disable wicd 2>&1 | show_debug
+    fi
+fi
 }
 
 disable() {
@@ -406,6 +436,14 @@ check_systemd
 show_info "Disabling Wireless Hotspot Service"
 # Disable service
 systemctl disable ap-hotspot.service
+if [[ $WICD_EXISTS ]]; then
+    if [[ $UPSTART_EXISTS ]]; then
+        update-rc.d wicd enable 2>&1 | show_debug
+    else
+        systemctl enable wicd 2>&1 | show_debug
+    fi
+fi
+
 # Remove files
 rm "$systemdsymlink"
 rm "$systemdservice"
