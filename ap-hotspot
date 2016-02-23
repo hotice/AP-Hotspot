@@ -48,20 +48,38 @@ else
     SYSTEMD_EXISTS=
 fi
 
+if tput colors &> /dev/null; then
+    COLORS="YES"
+else
+    COLORS=
+fi
+
 show_msg() {
 echo -e "$@"
 }
 
 show_info() {
-echo -e "\033[1;34m$@\033[0m"
+if [[ $COLORS ]]; then
+    echo -e "\033[1;34m$@\033[0m"
+else
+    echo -e "$@"
+fi
 }
 
 show_warn() {
-echo -e "\033[1;33m$@\033[0m"
+if [[ $COLORS ]]; then
+    echo -e "\033[1;33m$@\033[0m"
+else
+    echo -e "$@"
+fi
 }
 
 show_err() {
-echo -e "\033[1;31m$@\033[0m" 1>&2
+if [[ $COLORS ]]; then
+    echo -e "\033[1;31m$@\033[0m" 1>&2
+else
+    echo -e "$@"
+fi
 }
 
 show_debug() {
