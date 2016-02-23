@@ -29,6 +29,7 @@ systemdsymlink="/etc/systemd/system/ap-hotspot.service"
 user=$(who | awk '{print $1}' | sed '/^root$/d' | uniq)
 WMPID=$(ps -u $user | tail -n 1 | awk '{print $1}')
 DBUS=$(egrep -z 'DBUS_SESSION_BUS_ADDRESS|DISPLAY' /proc/${WMPID}/environ | sed -r -e 's/(.)DBUS_/\1 DBUS_/' -e 's/(.)DISPLAY/\1 DISPLAY/')
+startup_delay=20
 
 if command -v route > /dev/null; then
     IFCONFIG_EXISTS="yes"
@@ -385,8 +386,8 @@ After=syslog.target network.target
 Type=oneshot
 RemainAfterExit=yes
 KillMode=none
-ExecStart=/usr/bin/ap-hotspot start
-ExecStop=/usr/bin/ap-hotspot stop
+ExecStart=/bin/bash -c "sleep $startup_delay; /usr/bin/ap-hotspot start"
+ExecStop=/bin/bash -c "/usr/bin/ap-hotspot stop"
 [Install]
 WantedBy=multi-user.target
 EOF
