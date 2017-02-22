@@ -88,8 +88,9 @@ if [[ $(iwconfig "$INTERFACE_WLAN" 2>&1 | grep "Tx-Power=off") ]]; then
 	exit 1
 # Check if Wireless is enabled, but connected to a network
 elif [[ ! $(iwconfig "$INTERFACE_WLAN" 2>&1 | grep "ESSID:off/any") && $(iwconfig "$INTERFACE_WLAN" 2>&1 | grep "ESSID:") ]]; then
-	show_err "Please disconnect WiFi before proceeding"
-	exit 1
+	show_err "Disconnecting from WiFi before proceeding"
+	ifconfig "$INTERFACE_WLAN" down
+	ifconfig "$INTERFACE_WLAN" up
 fi
 }
 
@@ -211,8 +212,9 @@ INTERFACE_NET=$(grep "INTERFACE_NET" "$dnsmasqconfig" | sed -e 's/#INTERFACE_NET
 start() {
 # Check previous process
 if [[ -f "$pidfile" ]]; then
-	show_err "Another process is already running"
-	exit 1
+	show_err "Another process is already running..." 2>&1 | show_debug
+	show_err "Stopping that by removing the pidfile." 2>&1 | show_debug
+	rm /tmp/hotspot.pid 2>&1 | show_debug
 fi
 # Check root
 check_root
